@@ -67,46 +67,85 @@ class Simulation:
                     return limit
             return np.inf
 
-        r_launch_vel = integrate.solve_ivp(
+        r_water_vel = integrate.solve_ivp(
             water_exit_acc, (0, 1), np.array([self.initial_speed]), dense_output=True
         )
 
-        self.water_vel = np.vectorize(r_launch_vel.sol)
+        self.water_vel = np.vectorize(r_water_vel.sol)
         self.launch_time = find_limit(self.water_vel)
+
+        total_mass = self.M + self.V_liquid * LIQUID_DENSITY
+
+        def launch_acceleration(t, v):
+            vm = np.linalg.norm(v)
+            um = self.water_vel(t)
+            mass = (
+                total_mass
+                - integrate.quad(self.water_vel, 0, t)[0] * self.NA * LIQUID_DENSITY
+            )
+            rocket_acc = (
+                um ** 2 * self.NA * LIQUID_DENSITY - (vm ** 2 * self.drag_coeff)
+            ) / mass
+            if vm != 0:
+                rocket_dir = v / vm
+            else:
+                rocket_dir = [
+                    np.cos(self.launch_angle / 180 * np.pi),
+                    np.sin(self.launch_angle / 180 * np.pi),
+                ]
+            return rocket_acc * rocket_dir + G_VEC
+
         self.instant_impulse = (
             lambda t: self.water_vel(t) ** 2 * self.NA * LIQUID_DENSITY
         )
         self.launch_impulse = integrate.quad(self.instant_impulse, 0, self.launch_time)[
             0
         ]
-        self.launch_vel = integrate.quad(self.water_vel, 0, self.launch_time)[0]
+
+        r_launch_vel = integrate.solve_ivp(
+            launch_acceleration,
+            (0, self.launch_time),
+            np.array([0, 0]),
+            dense_output=True,
+        )
+
+        self.launch_vel = r_launch_vel.sol
+        self.launch_vel_vec = np.vectorize(lambda t, axis: r_launch_vel.sol(t)[axis])
+        self.launch_vel_mod = np.vectorize(
+            lambda t: np.linalg.norm(r_launch_vel.sol(t))
+        )
+
+        t = np.linspace(0, self.launch_time, 25)
+
+        dx = self.launch_vel_vec(t, 0)
+        dy = self.launch_vel_vec(t, 1)
+
+        x = integrate.cumtrapz(dx, t, initial=0)[-1]
+        y = integrate.cumtrapz(dy, t, initial=0)[-1]
+
+        self.post_launch_pos = np.array([x, y])
+        if self.post_launch_pos[1] <= 0:
+            print("[Warning]: Values lead to a rocket that never leaves the floor")
 
     def _calc_flight(self):
         def drag_acceleration(t, vel):
             vm = np.linalg.norm(vel)
             return -(vm * self.drag_coeff / self.M) * vel + G_VEC
 
-        post_launch_speed = self.launch_impulse / self.M
-        initial_velocity = (
-            np.array(
-                [
-                    np.cos(self.launch_angle / 180 * np.pi),
-                    np.sin(self.launch_angle / 180 * np.pi),
-                ]
-            )
-            * post_launch_speed
-        )
+        initial_velocity = self.launch_vel(self.launch_time)
 
         r_vel_traject = integrate.solve_ivp(
             drag_acceleration, (0, 100), initial_velocity, dense_output=True
         )
-        self.vel_vec = np.vectorize(lambda t, axis: r_vel_traject.sol(t)[axis])
-        self.vel_mod = np.vectorize(lambda t: np.linalg.norm(r_vel_traject.sol(t)))
+        self.flight_vel_vec = np.vectorize(lambda t, axis: r_vel_traject.sol(t)[axis])
+        self.flight_vel_mod = np.vectorize(
+            lambda t: np.linalg.norm(r_vel_traject.sol(t))
+        )
 
         t = np.linspace(0, 10, 1000)
 
-        dy = self.vel_vec(t, 1)
-        y = integrate.cumtrapz(dy, t, initial=0)
+        dy = self.flight_vel_vec(t, 1)
+        y = integrate.cumtrapz(dy, t, initial=0) + self.post_launch_pos[1]
 
         self.flight_time = t[np.argmax(y < 0)]
 
@@ -118,15 +157,14 @@ class Simulation:
         water_speed = self.water_vel(t)
 
         if plot:
-            plt.figure(figsize=(10, 10))
-            plt.plot(t, water_speed)
-            plt.xlabel("Time since launch (s)")
-            plt.ylabel("Water Speed at nozzle (m/s)")
-            plt.title(
-                f"Water exit velocity over time (pressure={self.P0/ATM} atm, water vol={self.V_liquid * 1000} litres)",
-                fontsize=14,
-            )
-            plt.grid(linestyle="--")
+            fig = plt.figure(figsize=(5, 5))
+            plot = fig.add_subplot(111)
+            plot.plot(t, water_speed)
+            plot.set_xlabel("Time since launch (s)")
+            plot.set_ylabel("Water Speed at nozzle (m/s)")
+            plot.set_title("Water exit velocity over time")
+            plot.grid(linestyle="--")
+            return fig
         else:
             return t, water_speed
 
@@ -139,21 +177,20 @@ class Simulation:
             self.V_liquid
             - np.cumsum(
                 np.hstack(
-                    [[0], self.launch_vel(t[:999]) * self.NA * self.launch_time / 1000]
+                    [[0], self.water_vel(t[:999]) * self.NA * self.launch_time / 1000]
                 )
             )
         ) * 1000
 
         if plot:
-            plt.figure(figsize=(10, 10))
-            plt.plot(t, volume)
-            plt.xlabel("Time since launch (s)")
-            plt.ylabel("Water Volume (litres)")
-            plt.title(
-                f"Water volume over time (pressure={self.P0/ATM} atm, water vol={self.V_liquid * 1000} litres)",
-                fontsize=14,
-            )
-            plt.grid(linestyle="--")
+            fig = plt.figure(figsize=(5, 5))
+            plot = fig.add_subplot(111)
+            plot.plot(t, volume)
+            plot.set_xlabel("Time since launch (s)")
+            plot.set_ylabel("Water Volume (litres)")
+            plot.set_title("Water volume over time")
+            plot.grid(linestyle="--")
+            return fig
         else:
             return t, volume
 
@@ -165,15 +202,14 @@ class Simulation:
         water_thrust = self.instant_impulse(t)
 
         if plot:
-            plt.figure(figsize=(10, 10))
-            plt.plot(t, water_thrust)
-            plt.xlabel("Time since launch (s)")
-            plt.ylabel("Thrust (n)")
-            plt.title(
-                f"Thrust over time (pressure={self.P0/ATM} atm, water vol={self.V_liquid * 1000} litres)",
-                fontsize=14,
-            )
-            plt.grid(linestyle="--")
+            fig = plt.figure(figsize=(5, 5))
+            plot = fig.add_subplot(111)
+            plot.plot(t, water_thrust)
+            plot.set_xlabel("Time since launch (s)")
+            plot.set_ylabel("Thrust (n)")
+            plot.set_title("Thrust over time")
+            plot.grid(linestyle="--")
+            return fig
         else:
             return t, water_thrust
 
@@ -181,19 +217,24 @@ class Simulation:
         if not self._run:
             raise Exception("no values calculated yet")
 
-        t = np.linspace(0, self.flight_time, 50)
-        drag = self.vel_mod(t) ** 2 * self.drag_coeff
+        t1 = np.linspace(0, self.launch_time, 50)
+        t2 = np.linspace(0, self.flight_time, 50)
+        drag1 = self.launch_vel_mod(t1) ** 2 * self.drag_coeff
+        drag2 = self.flight_vel_mod(t2) ** 2 * self.drag_coeff
+
+        t = np.hstack([t1, t2 + self.launch_time])
+        drag = np.hstack([drag1, drag2])
 
         if plot:
-            plt.figure(figsize=(10, 10))
-            plt.plot(t, drag)
-            plt.xlabel("Time since launch (s)")
-            plt.ylabel("Drag (n)")
-            plt.title(
-                f"Drag over time (pressure={self.P0/ATM} atm, water vol={self.V_liquid * 1000} litres)",
-                fontsize=14,
-            )
-            plt.grid(linestyle="--")
+            fig = plt.figure(figsize=(5, 5))
+            plot = fig.add_subplot(111)
+            plot.plot(t, drag)
+            plot.axvline(x=self.launch_time, color="red", linestyle="--")
+            plot.set_xlabel("Time since launch (s)")
+            plot.set_ylabel("Drag (n)")
+            plot.set_title("Drag over time")
+            plot.grid(linestyle="--")
+            return fig
         else:
             return t, drag
 
@@ -202,24 +243,38 @@ class Simulation:
         if not self._run:
             raise Exception("no values calculated yet")
 
-        t = np.linspace(0, self.flight_time, 50)
+        t_launch = np.linspace(0, self.launch_time, 50)
+        t_flight = np.linspace(0, self.flight_time, 200)
 
-        dx = self.vel_vec(t, 0)
-        dy = self.vel_vec(t, 1)
+        dx_launch = self.launch_vel_vec(t_launch, 0)
+        dy_launch = self.launch_vel_vec(t_launch, 1)
+        dx_flight = self.flight_vel_vec(t_flight, 0)
+        dy_flight = self.flight_vel_vec(t_flight, 1)
 
-        x = integrate.cumtrapz(dx, t, initial=0)
-        y = integrate.cumtrapz(dy, t, initial=0)
+        x_launch = integrate.cumtrapz(dx_launch, t_launch, initial=0)
+        y_launch = integrate.cumtrapz(dy_launch, t_launch, initial=0)
+
+        x_flight = (
+            integrate.cumtrapz(dx_flight, t_flight, initial=0) + self.post_launch_pos[0]
+        )
+        y_flight = (
+            integrate.cumtrapz(dy_flight, t_flight, initial=0) + self.post_launch_pos[1]
+        )
+
+        t = np.hstack([t_launch, t_flight + self.launch_time])
+        x = np.hstack([x_launch, x_flight])
+        y = np.hstack([y_launch, y_flight])
 
         if plot:
-            plt.figure(figsize=(10, 10))
-            plt.plot(x, y)
-            plt.xlabel("Distace (m)")
-            plt.ylabel("Height (m)")
-            plt.title(
-                f"Trajectory (pressure={self.P0/ATM} atm, water vol={self.V_liquid * 1000} litres)",
-                fontsize=14,
-            )
-            plt.grid(linestyle="--")
-            plt.axis("equal")
+            fig = plt.figure(figsize=(5, 5))
+            plot = fig.add_subplot(111)
+            plot.plot(x_launch, y_launch, color="red")
+            plot.plot(x_flight, y_flight, color="C0")
+            plot.set_xlabel("Distace (m)")
+            plot.set_ylabel("Height (m)")
+            plot.set_title("Trajectory")
+            plot.grid(linestyle="--")
+            plot.axis("equal")
+            return fig
         else:
             return t, np.vstack([x, y]).T

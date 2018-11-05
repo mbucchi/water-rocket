@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>ICH1104 - Water Rocket</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+</head>
+
+<body>
+    <div class="root">
+        <nav class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <div class="navbar-brand">
+                        <h2>
+                            Water Rocket Simulation
+                        </h2>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-sm-12 col-md-6 col-xl-4">
+                    <div class="card">
+                        <h4 class="card-header">Datos para simulación</h4>
+                        <div class="card-body">
+                            <form id="submit-form" name="rocketForm">
+                                <div class="form-group row">
+                                    <label for="bottleVol" class="col-sm-6 col-form-label text-sm-right">Volumen de
+                                        botella</label>
+                                    <div class="col-sm-3">
+                                        <input name="bottle_volume" type="text" class="form-control" id="bottleVol" value="2.5">
+                                    </div>
+                                    <label class="col-sm-3 col-form-label">litros</label>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="fillFactor" class="col-sm-6 col-form-label text-sm-right">Factor de
+                                        llenado</label>
+                                    <div class="col-sm-3">
+                                        <input name="fill_factor" type="text" class="form-control" id="fillFactor" value="40">
+                                    </div>
+                                    <label class="col-sm-3 col-form-label">%</label>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="bottlePressure" class="col-sm-6 col-form-label text-sm-right">Presión
+                                        inicial</label>
+                                    <div class="col-sm-3">
+                                        <input name="bottle_pressure" type="text" class="form-control" id="bottlePressure" value="4">
+                                    </div>
+                                    <label class="col-sm-3 col-form-label">ATM</label>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="rocketMass" class="col-sm-6 col-form-label text-sm-right">Masa cohete</label>
+                                    <div class="col-sm-3">
+                                        <input name="rocket_mass" type="text" class="form-control" id="rocketMass" value="175">
+                                    </div>
+                                    <label class="col-sm-3 col-form-label">gramos</label>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="nozzleArea" class="col-sm-6 col-form-label text-sm-right">Área de
+                                        boquilla</label>
+                                    <div class="col-sm-3">
+                                        <input name="nozzle_area" type="text" class="form-control" id="nozzleArea" value="3.5">
+                                    </div>
+                                    <label class="col-sm-3 col-form-label">cm^2</label>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="launchAngle" class="col-sm-6 col-form-label text-sm-right">Ángulo de
+                                        lanzamiento</label>
+                                    <div class="col-sm-3">
+                                        <input name="launch_angle" type="text" class="form-control" id="launchAngle" value="60">
+                                    </div>
+                                    <label class="col-sm-3 col-form-label">deg</label>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="faceArea" class="col-sm-6 col-form-label text-sm-right">Área frontal</label>
+                                    <div class="col-sm-3">
+                                        <input name="face_area" type="text" class="form-control" id="faceArea" value="350">
+                                    </div>
+                                    <label class="col-sm-3 col-form-label">cm^2</label>
+                                </div>
+                                <button id="submit-btn" type="submit" class="btn btn-secondary btn-block">Simular</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm">
+                    <div class="card">
+                        <h4 class="card-header">Animación</h4>
+                        <div class="container">
+                            <div style="width: 500px; height: 500px" id="animation-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-sm">
+                    <div class="card">
+                        <h4 class="card-header">Resultados</h4>
+                        <div class="d-flex flex-wrap">
+                            <div style="max-width: 100%;" id="trajectory-container"></div>
+                            <div style="max-width: 100%;" id="drag-container"></div>
+                            <div style="max-width: 100%;" id="thrust-container"></div>
+                            <div style="max-width: 100%;" id="water-speed-container"></div>
+                            <div style="max-width: 100%;" id="water-vol-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    </div>
+</body>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.bundle.min.js" crossorigin="anonymous"></script>
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='index.js') }}"></script>
+
+</html>
